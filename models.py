@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.optim as optim
 import torch.nn.functional as F
+import segmentation_models_pytorch as smp
+
 
 class NetworkLight(nn.Module):
 
@@ -28,3 +30,25 @@ class NetworkLight(nn.Module):
         output = output.view(output.size(0), -1)
         output = self.linear_layers(output)
         return output
+
+class UnetTransfer(nn.Module):
+  def __init__(self):
+    super(UnetTransfer, self).__init__()
+    unet = smp.Unet('resnet18', encoder_weights='imagenet')
+    for param in unet.parameters():
+      param.requires_grad = False
+    self.encoder = unet.encoder
+    self.avgpool = nn.AdaptiveAvgPool2d((2,2))
+    self.linear_layers = nn.Sequential(
+    nn.Linear(in_features=512*2*2, out_features=1024),
+    nn.ELU(),
+    nn.Linear(in_features=1024, out_features=1024),
+    nn.Linear(in_features=1024, out_features=1)
+)
+  def forward(self, input):
+    input = input.view(input.size(0), 3, 70, 320)
+    output = self.encoder(input)[-1]
+    output = self.avgpool(output)
+    output = output.view(output.size(0), -1)
+    output = self.linear_layers(output)
+    return output
